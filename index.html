@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>온라인 커비 슬리더리오</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Jua', sans-serif;
+            background-color: #a2d2ff;
+            touch-action: none;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .top-left-ui {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            pointer-events: auto;
+        }
+
+        .score-box {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid #ffb8d1;
+            margin-top: 10px;
+            display: inline-block;
+        }
+
+        #leaderboard {
+            position: absolute;
+            top: 10rem;
+            right: 1rem;
+            background-color: rgba(255, 255, 255, 0.85);
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 2px solid #ffb8d1;
+            width: 200px;
+            max-height: 50vh;
+            overflow-y: auto;
+            pointer-events: auto;
+        }
+
+        #notice {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 182, 193, 0.95);
+            padding: 1rem 2rem;
+            border-radius: 9999px;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 50;
+            display: none;
+            animation: popIn 0.5s ease-out;
+            text-align: center;
+        }
+
+        #link-container {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 0.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            text-align: center;
+            pointer-events: auto;
+            border: 2px solid #ffb8d1;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #game-over {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 120px;
+            height: 120px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border: 2px solid rgba(255, 182, 193, 0.6);
+            border-radius: 50%;
+            touch-action: none;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #joystick-stick {
+            width: 50px;
+            height: 50px;
+            background-color: #ffb8d1;
+            border: 2px solid #f03a5e;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(0px, 0px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+
+        #start-screen {
+            position: absolute;
+            inset: 0;
+            background-color: #a2d2ff;
+            background-image: radial-gradient(circle, #bde0fe 10%, transparent 10%), radial-gradient(circle, #bde0fe 10%, transparent 10%);
+            background-size: 50px 50px;
+            background-position: 0 0, 25px 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI Layer -->
+    <div id="ui-layer">
+        <div class="top-left-ui">
+            <h1 class="text-3xl text-pink-500 drop-shadow-md tracking-wider" style="-webkit-text-stroke: 1px white;">온라인 커비 키우기</h1>
+            <p class="text-white drop-shadow-md">마우스/터치/방향키로 이동!</p>
+            <div class="score-box text-xl">
+                <span class="text-gray-600">점수: </span>
+                <span id="score" class="text-2xl text-pink-500 font-bold">0</span>
+                <div id="stats-info" class="text-sm text-gray-500 mt-1">별: 0 | 킬: 0 | 부활: 0</div>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div id="leaderboard">
+            <h3 class="font-bold text-pink-600 mb-2">🏆 랭킹 (Top 30)</h3>
+        </div>
+
+        <!-- Notice -->
+        <div id="notice">알림</div>
+
+        <!-- Copy Link Button -->
+        <div id="link-container">
+            <div class="text-xs text-gray-500 font-bold mb-1">서버: <span id="current-room-display" class="text-pink-600">전체 서버</span></div>
+            <button id="copy-link-btn" class="bg-pink-400 hover:bg-pink-500 text-white text-sm font-bold py-2 px-4 rounded-full shadow">
+                🔗 게임 주소 복사
+            </button>
+            <button id="show-qr-btn" class="mt-2 bg-purple-400 hover:bg-purple-500 text-white text-sm font-bold py-2 px-4 rounded-full shadow">
+                📱 QR 코드 보기
+            </button>
+        </div>
+
+        <!-- Joystick UI -->
+        <div id="joystick-zone">
+            <div id="joystick-stick"></div>
+        </div>
+    </div>
+
+    <div id="qr-modal" style="display:none; position:absolute; inset:0; z-index:60; background:rgba(0,0,0,.65); align-items:center; justify-content:center; pointer-events:auto;">
+        <div style="background:white; border:4px solid #ffb8d1; border-radius:24px; padding:24px; text-align:center; width:min(90vw,360px);">
+            <h2 style="font-size:25px; color:#db2777; margin-bottom:8px;">친구 초대하기 💗</h2>
+            <p style="color:#555; margin-bottom:12px;">친구가 QR 코드를 찍으면 같은 전체 서버에 접속해요!</p>
+            <div id="qr-image" style="display:flex; justify-content:center; margin:12px auto;"></div>
+            <p id="qr-room-label" style="font-weight:bold; color:#9333ea; margin:8px;">하나의 공용 서버</p>
+            <button id="close-qr-btn" style="background:#ec4899;color:white;padding:10px 24px;border-radius:999px;font-weight:bold;">닫기</button>
+        </div>
+    </div>
+
+    <!-- Game Canvas -->
+    <canvas id="game-board"></canvas>
+
+    <!-- Loading Screen (WebSocket Init) -->
+    <div id="loading" style="position:absolute; inset:0; background:rgba(255,255,255,0.9); z-index:30; display:flex; justify-content:center; align-items:center; flex-direction:column;">
+        <h2 class="text-3xl text-pink-500 mb-4 animate-pulse">온라인 서버 연결 중...</h2>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div id="game-over" style="display:none;">
+        <div class="bg-white p-8 rounded-3xl text-center shadow-2xl border-4 border-pink-300">
+            <h2 class="text-4xl text-pink-500 mb-2">앗, 죽었어요!</h2>
+            <p class="text-lg text-gray-600 mb-6">최종 점수: <span id="final-score" class="font-bold text-2xl text-pink-600">0</span></p>
+            <div class="flex flex-col gap-3 items-center w-full">
+                <button id="btn-revive" onclick="useRevive()" class="hidden bg-blue-400 hover:bg-blue-500 text-white text-xl py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 w-full max-w-[250px]">
+                    무료 부활하기 (<span id="revive-count">0</span>)
+                </button>
+                <button onclick="respawn()" class="bg-pink-400 hover:bg-pink-500 text-white text-xl py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95 w-full max-w-[250px]">
+                    새로 시작하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+    // Firebase 대신 WebSocket 공용 서버 사용
+    // Render 등에 서버를 배포한 뒤 아래 주소를 실제 wss:// 주소로 바꿔 주세요.
+    const WS_SERVER_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    let socket = null;
+    let userId = 'kirby-' + Math.random().toString(36).slice(2, 10);
+    let connected = false;
+    
+    // 게임 환경 설정
+    const canvas = document.getElementById('game-board');
+    const ctx = canvas.getContext('2d');
+    const WORLD_WIDTH = 4000;
+    const WORLD_HEIGHT = 4000;
+    const KIRBY_RADIUS = 12;
+    const SPACING = 5; // 기존 12에서 5로 줄여서 커비들 사이의 간격을 좁힘
+
+    // 게임 변수
+    let player = null;
+    let otherPlayers = {};
+    let foods = {};
+    let score = 0;
+    let kills = 0;
+    let stars = 0;
+    let revives = 0;
+    let unlockedSkins = [];
+    let currentSkin = 'default';
+    let isGameOver = true;
+    let camera = { x: 0, y: 0 };
+    
+    // 조작 변수
+    let targetAngle = null;
+    let usingJoystick = false;
+    let usingKeyboard = false;
+    let joyX = 0, joyY = 0;
+    const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+    // 룸 코드 변수
+    // 모든 플레이어가 공유하는 단 하나의 서버 공간
+    const currentRoomCode = 'GLOBAL';
+
+    // QR은 현재 배포된 게임 주소 자체를 담습니다. 방 코드 없이 모두 같은 서버로 접속합니다.
+    function getInviteUrl() {
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.hash = '';
+        return url.toString();
+    }
+    document.getElementById('copy-link-btn').addEventListener('click', async () => {
+        const inviteUrl = getInviteUrl();
+        try {
+            await navigator.clipboard.writeText(inviteUrl);
+            showNotice('🔗 게임 주소를 복사했어요!');
+        } catch (err) {
+            const tempInput = document.createElement('textarea');
+            tempInput.value = inviteUrl; document.body.appendChild(tempInput);
+            tempInput.select(); document.execCommand('copy'); tempInput.remove();
+            showNotice('🔗 게임 주소를 복사했어요!');
+        }
+    });
+    document.getElementById('show-qr-btn').addEventListener('click', () => {
+        const box = document.getElementById('qr-image');
+        box.innerHTML = '';
+        const inviteUrl = getInviteUrl();
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(box, { text: inviteUrl, width: 230, height: 230, correctLevel: QRCode.CorrectLevel.M });
+        } else {
+            // QR 라이브러리 로딩이 실패해도 외부 QR 이미지로 표시
+            const img = document.createElement('img');
+            img.width = 230; img.height = 230; img.alt = '게임 접속 QR 코드';
+            img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=230x230&data=' + encodeURIComponent(inviteUrl);
+            box.appendChild(img);
+        }
+        document.getElementById('qr-modal').style.display = 'flex';
+    });
+    document.getElementById('close-qr-btn').addEventListener('click', () => {
+        document.getElementById('qr-modal').style.display = 'none';
+    });
+
+    function startGame() {
+        document.getElementById('current-room-display').textContent = '전체 서버';
+        startListeners();
+        respawn();
+    }
+
+    // 캔버스 리사이즈
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // 입력 이벤트 리스너 세팅
+    function setupInputs() {
+        // 마우스/터치 목표 업데이트
+        function updateTarget(e) {
+            if(isGameOver) return;
+            let clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+            let clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+            
+            let dx = clientX - canvas.width / 2;
+            let dy = clientY - canvas.height / 2;
+            if (Math.abs(dx) > 10 || Math.abs(dy) > 10) targetAngle = Math.atan2(dy, dx);
+        }
+        window.addEventListener('mousemove', updateTarget);
+        window.addEventListener('touchmove', updateTarget, { passive: false });
+        window.addEventListener('touchstart', updateTarget, { passive: false });
+
+        // 키보드
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) { keys[e.key] = true; usingKeyboard = true; }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) { keys[e.key] = false; }
+            usingKeyboard = Object.values(keys).some(v => v);
+        });
+
+        // 조이스틱
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickStick = document.getElementById('joystick-stick');
+        const maxStickDist = 35;
+        function handleJoystick(e) {
+            e.preventDefault();
+            usingJoystick = true;
+            let clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+            let clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            const rect = joystickZone.getBoundingClientRect();
+            let dx = clientX - (rect.left + rect.width / 2);
+            let dy = clientY - (rect.top + rect.height / 2);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > maxStickDist) { dx = (dx / dist) * maxStickDist; dy = (dy / dist) * maxStickDist; }
+            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+            joyX = dx; joyY = dy;
+        }
+        function resetJoystick(e) {
+            e.preventDefault();
+            joystickStick.style.transform = `translate(0px, 0px)`;
+            usingJoystick = false; joyX = 0; joyY = 0;
+        }
+        joystickZone.addEventListener('touchstart', handleJoystick, {passive: false});
+        joystickZone.addEventListener('touchmove', handleJoystick, {passive: false});
+        joystickZone.addEventListener('touchend', resetJoystick, {passive: false});
+        joystickZone.addEventListener('mousedown', (e) => {
+            const onMouseMove = (ev) => handleJoystick(ev);
+            const onMouseUp = (ev) => { resetJoystick(ev); window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            handleJoystick(e);
+        });
+    }
+
+    // WebSocket 서버 연결 및 전체 플레이어/먹이 상태 수신
+    async function initWebSocket() {
+        try {
+            socket = new WebSocket(WS_SERVER_URL);
+            socket.addEventListener('open', () => {
+                connected = true;
+                socket.send(JSON.stringify({ type: 'join', id: userId }));
+                document.getElementById('loading').style.display = 'none';
+                startGame();
+                setInterval(syncPlayerData, 100);
+                showNotice('🌐 공용 서버에 연결됐어요!');
+            });
+            socket.addEventListener('message', (event) => {
+                let msg; try { msg = JSON.parse(event.data); } catch { return; }
+                if (msg.type === 'state') {
+                    otherPlayers = msg.players || {};
+                    foods = msg.foods || {};
+                    delete otherPlayers[userId];
+                }
+                if (msg.type === 'notice') showNotice(msg.text || '서버 알림');
+            });
+            socket.addEventListener('close', () => {
+                connected = false;
+                document.getElementById('loading').style.display = 'flex';
+                document.getElementById('loading').innerHTML = '<h2 class="text-2xl text-red-500">서버 연결이 끊겼어요</h2><p style="margin-top:10px;color:#555">잠시 후 새로고침해 주세요.</p>';
+            });
+            socket.addEventListener('error', () => {
+                document.getElementById('loading').innerHTML = '<h2 class="text-2xl text-red-500">서버 연결 실패</h2><p style="margin-top:10px;color:#555">서버 배포 주소와 실행 상태를 확인해 주세요.</p>';
+            });
+            window.addEventListener('beforeunload', () => {
+                if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({type:'leave', id:userId}));
+            });
+        } catch (e) {
+            document.getElementById('loading').innerHTML = '<h2 class="text-2xl text-red-500">서버 연결 실패</h2>';
+        }
+    }
+
+    function startListeners() { /* 서버 상태는 WebSocket 메시지로 수신 */ }
+
+    function sendServer(message) {
+        if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
+    }
+
+    function syncPlayerData() {
+        if (!connected || isGameOver || !player) return;
+        sendServer({ type: 'player', id: userId, player: {
+            x: player.x, y: player.y, angle: player.angle, score, kills, stars,
+            length: player.length, color: player.color, skinType: currentSkin,
+            pathHistory: player.pathHistory.slice(0, Math.min(player.length * SPACING, 150))
+        }});
+    }
+
+    function syncFoods() { /* 먹이는 서버가 공통으로 생성하고 관리 */ }
+
+    // 플레이어 스폰 (다시 시작)
+    window.respawn = function() {
+        isGameOver = false;
+        score = 0;
+        kills = 0;
+        stars = 0;
+        document.getElementById('score').textContent = score;
+        document.getElementById('game-over').style.display = 'none';
+        
+        let startX = Math.random() * (WORLD_WIDTH - 200) + 100;
+        let startY = Math.random() * (WORLD_HEIGHT - 200) + 100;
+        let startAngle = Math.random() * Math.PI * 2;
+
+        const KIRBY_COLORS = ['#ffb6c1', '#fef08a', '#93c5fd', '#bbf7d0', '#fed7aa', '#e9d5ff'];
+        let randomColor = KIRBY_COLORS[Math.floor(Math.random() * KIRBY_COLORS.length)];
+
+        // 보유 스킨 중 무작위 적용 (기본 포함)
+        let possibleSkins = ['default', ...unlockedSkins];
+        currentSkin = possibleSkins[Math.floor(Math.random() * possibleSkins.length)];
+
+        player = {
+            x: startX,
+            y: startY,
+            angle: startAngle,
+            speed: 5,
+            length: 3,
+            color: randomColor,
+            pathHistory: []
+        };
+        
+        for(let i = 0; i < player.length * SPACING; i++) {
+            player.pathHistory.push({ x: player.x, y: player.y, angle: player.angle });
+        }
+        
+        targetAngle = null;
+        usingJoystick = false;
+        usingKeyboard = false;
+        
+        // 죽었던 유저라면 데이터베이스에 다시 등록을 위해 즉시 1회 동기화
+        syncPlayerData();
+    };
+
+    window.useRevive = function() {
+        if(revives <= 0) return;
+        revives--;
+        isGameOver = false;
+        document.getElementById('game-over').style.display = 'none';
+        
+        // 죽은 자리에서 살짝 떨어진 무작위 위치로 부활 (길이/점수 유지)
+        player.x = Math.random() * (WORLD_WIDTH - 200) + 100;
+        player.y = Math.random() * (WORLD_HEIGHT - 200) + 100;
+        for(let i = 0; i < player.pathHistory.length; i++) {
+            player.pathHistory[i] = { x: player.x, y: player.y, angle: player.angle };
+        }
+        targetAngle = null;
+        usingJoystick = false;
+        usingKeyboard = false;
+        
+        syncPlayerData();
+    };
+
+    function showNotice(msg) {
+        const el = document.getElementById('notice');
+        el.innerHTML = msg;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+
+    // 로컬 게임 오버 처리
+    async function handleGameOver() {
+        isGameOver = true;
+        document.getElementById('game-over').style.display = 'flex';
+        document.getElementById('final-score').textContent = score;
+        
+        const btnRevive = document.getElementById('btn-revive');
+        if(revives > 0) {
+            btnRevive.classList.remove('hidden');
+            document.getElementById('revive-count').textContent = revives;
+        } else {
+            btnRevive.classList.add('hidden');
+        }
+
+        // 내 데이터를 삭제해서 다른 사람 화면에서 사라지게 함
+        sendServer({ type: 'leave', id: userId });
+    }
+
+    // 60FPS 렌더링 및 로직 루프
+    function gameLoop() {
+        requestAnimationFrame(gameLoop);
+        if (isGameOver) {
+            if(!isGameOver && player) drawScene(); // 백그라운드 렌더링 유지
+            return;
+        }
+        
+        updateLocalPlayer();
+        checkCollisions();
+        updateLeaderboard();
+        drawScene();
+    }
+
+    function updateLeaderboard() {
+        if (!player || isGameOver) return;
+        const allPlayers = [];
+        allPlayers.push({ id: userId, score: score, isMe: true });
+        for(let id in otherPlayers) {
+            allPlayers.push({ id: id, score: otherPlayers[id].score || 0, isMe: false });
+        }
+        // 점수 순으로 정렬
+        allPlayers.sort((a, b) => b.score - a.score);
+        
+        let rank = allPlayers.findIndex(p => p.id === userId) + 1;
+        
+        // 랭크 달성 보상 체크 (최초 1회만)
+        if (rank === 1 && !unlockedSkins.includes('rainbow')) {
+            unlockedSkins.push('rainbow'); revives += 5; currentSkin = 'rainbow';
+            showNotice('🏆 1위 달성!<br>무지개 스킨 & 부활권 5개 획득!');
+        } else if (rank === 2 && !unlockedSkins.includes('galaxy')) {
+            unlockedSkins.push('galaxy'); revives += 3; currentSkin = 'galaxy';
+            showNotice('🥈 2위 달성!<br>은하수 스킨 & 부활권 3개 획득!');
+        } else if (rank === 3 && !unlockedSkins.includes('ore')) {
+            unlockedSkins.push('ore'); revives += 1; currentSkin = 'ore';
+            showNotice('🥉 3위 달성!<br>광석 스킨 & 부활권 1개 획득!');
+        }
+
+        // 랭킹 보드 UI 업데이트
+        let html = '<h3 class="font-bold text-pink-600 mb-2">🏆 랭킹 (Top 30)</h3>';
+        for(let i = 0; i < Math.min(30, allPlayers.length); i++) {
+            let p = allPlayers[i];
+            html += `<div class="text-sm truncate ${p.isMe ? 'font-bold text-pink-600' : 'text-gray-700'}">
+                ${i+1}. ${p.isMe ? '나 (Me)' : '유저'} - ${p.score}점
+            </div>`;
+        }
+        document.getElementById('leaderboard').innerHTML = html;
+        document.getElementById('stats-info').innerHTML = `별: ${stars} | 킬: ${kills} | 부활: ${revives}`;
+    }
+
+    function updateLocalPlayer() {
+        let hasTarget = false;
+        let desiredAngle = player.angle;
+
+        if (usingKeyboard) {
+            let dx = 0, dy = 0;
+            if (keys.ArrowUp || keys.w) dy -= 1;
+            if (keys.ArrowDown || keys.s) dy += 1;
+            if (keys.ArrowLeft || keys.a) dx -= 1;
+            if (keys.ArrowRight || keys.d) dx += 1;
+            if (dx !== 0 || dy !== 0) { 
+                desiredAngle = Math.atan2(dy, dx); 
+                targetAngle = desiredAngle; // 키보드 마지막 방향 저장
+                hasTarget = true; 
+            }
+        } else if (usingJoystick) {
+            if (Math.abs(joyX) > 1 || Math.abs(joyY) > 1) { 
+                desiredAngle = Math.atan2(joyY, joyX); 
+                targetAngle = desiredAngle; // 조이스틱 마지막 방향 저장
+                hasTarget = true; 
+            }
+        } else if (targetAngle !== null) {
+            desiredAngle = targetAngle; hasTarget = true;
+        }
+
+        if (hasTarget) {
+            let angleDiff = desiredAngle - player.angle;
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            player.angle += angleDiff * 0.15;
+        }
+
+        player.x += Math.cos(player.angle) * player.speed;
+        player.y += Math.sin(player.angle) * player.speed;
+
+        // 맵 경계 충돌
+        if (player.x < 0 || player.x > WORLD_WIDTH || player.y < 0 || player.y > WORLD_HEIGHT) {
+            handleGameOver();
+            return;
+        }
+
+        player.pathHistory.unshift({ x: player.x, y: player.y, angle: player.angle });
+        if (player.pathHistory.length > player.length * SPACING + 10) {
+            player.pathHistory.length = player.length * SPACING + 10;
+        }
+    }
+
+    function checkCollisions() {
+        // 먹이 충돌
+        for (let foodId in foods) {
+            let f = foods[foodId];
+            const distSq = (player.x - f.x) ** 2 + (player.y - f.y) ** 2;
+            if (distSq < (KIRBY_RADIUS + f.size + 15) ** 2) {
+                // 즉시 로컬에서 삭제해 중복 섭취 방지
+                delete foods[foodId]; 
+                stars += 1;
+                score += 10;
+                player.length++;
+                document.getElementById('score').textContent = score;
+                // 서버에 삭제 요청
+                sendServer({ type: 'eat', foodId });
+            }
+        }
+        
+        // 다른 플레이어 꼬리 충돌 검사 (내가 상대의 몸통에 머리를 부딪히면 패배)
+        for(let oId in otherPlayers) {
+            let other = otherPlayers[oId];
+            if(!other.pathHistory) continue;
+            
+            for(let i=0; i < other.length; i++) {
+                let idx = i * SPACING;
+                if(idx < other.pathHistory.length) {
+                    let segment = other.pathHistory[idx];
+                    let dx = player.x - segment.x;
+                    let dy = player.y - segment.y;
+                    if(dx*dx + dy*dy < (KIRBY_RADIUS * 2 * 0.8)**2) {
+                        // 내가 들이박았으므로 다른 유저의 킬 수를 올려주고 나는 사망
+                        sendServer({ type: 'kill', targetId: oId });
+                        handleGameOver();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    function drawScene() {
+        camera.x = (player ? player.x : WORLD_WIDTH/2) - canvas.width / 2;
+        camera.y = (player ? player.y : WORLD_HEIGHT/2) - canvas.height / 2;
+
+        ctx.fillStyle = '#a2d2ff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(-camera.x, -camera.y);
+
+        // Grid
+        ctx.strokeStyle = 'rgba(255,255,255, 0.4)';
+        ctx.lineWidth = 2;
+        const gridSize = 100;
+        let startX = Math.floor(camera.x / gridSize) * gridSize;
+        let startY = Math.floor(camera.y / gridSize) * gridSize;
+        ctx.beginPath();
+        for (let x = startX; x < camera.x + canvas.width; x += gridSize) {
+            if(x >= 0 && x <= WORLD_WIDTH) { ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); }
+        }
+        for (let y = startY; y < camera.y + canvas.height; y += gridSize) {
+            if(y >= 0 && y <= WORLD_HEIGHT) { ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); }
+        }
+        ctx.stroke();
+
+        // Border
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        // Foods
+        for (let key in foods) {
+            let f = foods[key];
+            if (f.x > camera.x - 20 && f.x < camera.x + canvas.width + 20 &&
+                f.y > camera.y - 20 && f.y < camera.y + canvas.height + 20) {
+                drawStar(f.x, f.y, 5, f.size, f.size/2, f.color);
+            }
+        }
+
+        // Other Players
+        for (let oId in otherPlayers) {
+            let other = otherPlayers[oId];
+            if(other.pathHistory && other.pathHistory.length > 0) {
+                // 꼬리부터 머리 순서
+                for (let i = other.length - 1; i >= 0; i--) {
+                    let index = i * SPACING;
+                    if (index >= other.pathHistory.length) index = other.pathHistory.length - 1;
+                    let pos = other.pathHistory[index];
+                    if (pos) drawKirby(pos.x, pos.y, pos.angle, 1, other.color || '#ffb6c1', other.skinType || 'default', i);
+                }
+            }
+        }
+
+        // Local Player
+        if (player && !isGameOver) {
+            for (let i = player.length - 1; i >= 0; i--) {
+                let index = i * SPACING;
+                if (index >= player.pathHistory.length) index = player.pathHistory.length - 1;
+                let pos = player.pathHistory[index];
+                if (pos) drawKirby(pos.x, pos.y, pos.angle, i===0 ? 1.1 : 1, player.color, currentSkin, i);
+            }
+        }
+
+        ctx.restore();
+    }
+
+    function drawKirby(x, y, angle, scale = 1, color = '#ffb6c1', skinType = 'default', index = 0) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle + Math.PI / 2);
+        ctx.scale(scale, scale);
+
+        // 스킨 텍스처(색상) 결정
+        let bodyColor = color;
+        if(skinType === 'rainbow') {
+            bodyColor = `hsl(${(Date.now() / 10 + index * 20) % 360}, 100%, 70%)`;
+        } else if(skinType === 'galaxy') {
+            let grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 9.5);
+            grad.addColorStop(0, '#312e81'); // 진한 보라
+            grad.addColorStop(1, '#0f172a'); // 우주 검은색
+            bodyColor = grad;
+        } else if(skinType === 'ore') {
+            let grad = ctx.createLinearGradient(-9.5, -9.5, 9.5, 9.5);
+            grad.addColorStop(0, '#e2e8f0');
+            grad.addColorStop(0.5, '#94a3b8'); // 회색 광석
+            grad.addColorStop(1, '#475569');
+            bodyColor = grad;
+        }
+
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath(); ctx.arc(0, 0, 9.5, 0, Math.PI * 2); ctx.fill();
+
+        // 은하수 스킨 별 장식 무늬
+        if (skinType === 'galaxy') {
+            ctx.fillStyle = 'white';
+            for(let s = 0; s < 5; s++) {
+                let sx = Math.sin(index * 10 + s) * 7;
+                let sy = Math.cos(index * 10 + s) * 7;
+                ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        // 광석 스킨 각진 질감 선
+        if (skinType === 'ore') {
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-5, -5); ctx.lineTo(5, -5); ctx.lineTo(0, 5); ctx.closePath();
+            ctx.stroke();
+        }
+
+        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.stroke();
+
+        // 발 색상 처리
+        let feetColor = skinType === 'rainbow' ? `hsl(${(Date.now() / 10 + index * 20 + 90) % 360}, 100%, 50%)` : 
+                        skinType === 'galaxy' ? '#1e1b4b' :
+                        skinType === 'ore' ? '#64748b' : '#f03a5e';
+        ctx.fillStyle = feetColor;
+        ctx.beginPath(); ctx.ellipse(-5, 8, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(5, 8, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+
+        // 팔
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath(); ctx.ellipse(-9, 2, 2.5, 3.5, -Math.PI/6, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(9, 2, 2.5, 3.5, Math.PI/6, 0, Math.PI*2); ctx.fill();
+
+        // 볼터치 (우주와 광석 스킨일 때는 볼터치 숨김 처리)
+        if(skinType !== 'galaxy' && skinType !== 'ore') {
+            ctx.fillStyle = '#ff7b9f'; 
+            ctx.beginPath(); ctx.ellipse(-6, 2, 2, 1, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(6, 2, 2, 1, 0, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 눈
+        ctx.fillStyle = 'black'; 
+        ctx.beginPath(); ctx.ellipse(-3, -2, 1.5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(3, -2, 1.5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+        
+        // 눈동자
+        ctx.fillStyle = 'white'; 
+        ctx.beginPath(); ctx.ellipse(-3, -4, 1, 1.5, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(3, -4, 1, 1.5, 0, 0, Math.PI*2); ctx.fill();
+
+        // 입
+        ctx.fillStyle = '#cc0000'; 
+        ctx.beginPath(); ctx.arc(0, 3, 1.5, 0, Math.PI, false); ctx.fill();
+
+        ctx.restore();
+    }
+
+    function drawStar(cx, cy, spikes, outerRadius, innerRadius, color) {
+        let rot = Math.PI / 2 * 3;
+        let x = cx, y = cy, step = Math.PI / spikes;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius);
+        for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius; y = cy + Math.sin(rot) * outerRadius; ctx.lineTo(x, y); rot += step;
+            x = cx + Math.cos(rot) * innerRadius; y = cy + Math.sin(rot) * innerRadius; ctx.lineTo(x, y); rot += step;
+        }
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
+        ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 5; ctx.fill();
+        ctx.restore();
+    }
+
+    // 초기 실행
+    setupInputs();
+    initWebSocket().then(() => {
+        requestAnimationFrame(gameLoop);
+    });
+
+</script>
+</body>
+</html>
